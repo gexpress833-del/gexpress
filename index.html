@@ -466,20 +466,6 @@
 
                     <div id="loginError" class="hidden mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm"></div>
 
-                    <form id="loginForm" class="space-y-4">
-                        <div>
-                            <label for="loginUsername" class="block text-sm font-medium mb-2">Nom d'utilisateur</label>
-                            <input type="text" id="loginUsername" required class="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-green-express focus:border-transparent transition" placeholder="admin">
-                        </div>
-                        <div>
-                            <label for="loginPassword" class="block text-sm font-medium mb-2">Mot de passe</label>
-                            <input type="password" id="loginPassword" required class="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-green-express focus:border-transparent transition" placeholder="admin123">
-                        </div>
-
-                        <button type="submit" class="w-full bg-green-express hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition transform hover:scale-105">
-                            Se connecter
-                        </button>
-                    </form>
 
                     <div class="mt-6 text-center">
                         <button id="showRegisterBtn" class="text-green-express hover:underline text-sm">
@@ -487,12 +473,22 @@
                         </button>
                     </div>
 
+                    <form id="loginForm" class="space-y-4">
+                        <div>
+                            <label for="loginUsername" class="block text-sm font-medium mb-2">Nom d'utilisateur</label>
+                            <input type="text" id="loginUsername" required class="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-green-express focus:border-transparent transition" placeholder="Votre nom d'utilisateur">
+                        </div>
+                        <div>
+                            <label for="loginPassword" class="block text-sm font-medium mb-2">Mot de passe</label>
+                            <input type="password" id="loginPassword" required class="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-green-express focus:border-transparent transition" placeholder="Votre mot de passe">
+                        </div>
+
+                        <button type="submit" class="w-full bg-green-express hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition transform hover:scale-105">
+                            Se connecter
+                        </button>
+                    </form>
+
                     <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
-                            <strong>Compte de démonstration :</strong><br>
-                            Admin - Username: admin / Password: admin123<br>
-                            Client - Username: client / Password: client123
-                        </p>
                             <div class="mt-4 text-center">
                                 <button id="openFlyerFromLogin" class="text-sm text-green-express hover:underline">Voir le Flyer & Brochure</button>
                             </div>
