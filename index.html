@@ -151,9 +151,9 @@
                         <li>✅ Ingrédients frais, locaux et de saison</li>
                     </ul>
                 </div>
-                <div class="relative mt-8 md:mt-0">
+                <div class="relative">
                     <div class="rounded-2xl glass p-4 fancy-shadow floaty">
-                        <div class="swiper mySwiper h-56 sm:h-64 md:h-72 rounded-xl overflow-hidden">
+                        <div class="swiper mySwiper h-64 rounded-xl overflow-hidden">
                             <div class="swiper-wrapper" id="heroCarouselWrapper">
                                 <!-- Slides générés dynamiquement -->
                             </div>
@@ -481,7 +481,7 @@
                         <div>
                             <label for="loginPassword" class="block text-sm font-medium mb-2">Mot de passe</label>
                             <input type="password" id="loginPassword" required class="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-green-express focus:border-transparent transition" placeholder="Votre mot de passe">
-                        </div>
+                    </div>
 
                         <button type="submit" class="w-full bg-green-express hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition transform hover:scale-105">
                             Se connecter
@@ -1506,7 +1506,7 @@
                     badge.classList.remove('hidden');
                 } else {
                     badge.classList.add('hidden');
-                }
+            }
             });
         }
 
@@ -2047,7 +2047,7 @@
                                     user_id: currentUser.id,
                                     plan_id: plan.id,
                                     plan_name: plan.name,
-                                    amount: plan.price,
+                        amount: plan.price,
                                     user_name: currentUser.name,
                                     user_email: currentUser.email || `${currentUser.username}@example.com`,
                                     status: 'pending'
@@ -2863,8 +2863,8 @@
                             // Recharger les messages depuis Supabase
                             await loadContactMessagesFromSupabase();
 
-                            showAlert('Supprimé', 'Le message a été supprimé avec succès.');
-                            renderContactMessagesTable();
+                    showAlert('Supprimé', 'Le message a été supprimé avec succès.');
+                    renderContactMessagesTable();
                         } catch (e) {
                             console.error('Erreur inattendue lors de la suppression du message de contact', e);
                             showAlert('Erreur', 'Une erreur est survenue lors de la suppression du message.');
