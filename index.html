@@ -1491,10 +1491,21 @@
         }
 
         function getUnreadNotifications() {
-            // Filter notifications by current user's role
             if (!currentUser) return [];
-            const userRole = currentUser.role === 'admin' ? 'admin' : 'user';
-            return (appData.notifications || []).filter(n => n.toRole === userRole && !n.read);
+
+            return (appData.notifications || []).filter(n => {
+                if (n.read) return false;
+
+                if (currentUser.role === 'admin') {
+                    // L'admin voit toutes les notifications non lues
+                    return true;
+                }
+
+                // Client : ne voit que ses notifications (toRole 'user' + targetUserId vide ou = son id)
+                if (n.toRole !== 'user') return false;
+                if (n.targetUserId && n.targetUserId !== currentUser.id) return false;
+                return true;
+            });
         }
 
         function updateNotificationBadge() {
@@ -2421,15 +2432,15 @@
                             // Recharger les abonnements depuis Supabase
                             await loadSubscriptionsFromSupabase();
 
-                            // Ajouter à l'historique des paiements (toujours local pour l’instant)
-                            const payment = addPaymentHistory(inserted.id, request.userId, request.amount, 'completed');
+                            // Ajouter à l'historique des paiements
+                            await addPaymentHistory(inserted.id, request.userId, request.amount, 'completed');
 
                             // Supprimer la demande de paiement (local pour l’instant)
                     const updatedRequests = paymentRequests.filter(r => r.id !== requestId);
                     savePaymentRequests(updatedRequests);
 
-                    // Ajouter une notification au client (toRole: 'user')
-                            addNotification('subscription', 'Abonnement activé', `Abonnement ${plan.name} approuvé pour ${request.userName}`, 'user', inserted.id);
+                    // Ajouter une notification au client (toRole: 'user') avec ciblage du user
+                            addNotification('subscription', 'Abonnement activé', `Abonnement ${plan.name} approuvé pour ${request.userName}`, 'user', inserted.id, request.userId);
 
                     showAlert('Succès', 'L\'abonnement a été activé avec succès !');
                     loadAdminDashboard();
@@ -2776,9 +2787,9 @@
 
                             await loadPaymentRequestsFromSupabase();
 
-                    if (request) {
-                        addNotification('rejection', 'Demande de paiement rejetée', `Votre demande de paiement pour ${request.planName} a été rejetée.`, 'user', requestId);
-                    }
+                            if (request) {
+                                addNotification('rejection', 'Demande de paiement rejetée', `Votre demande de paiement pour ${request.planName} a été rejetée.`, 'user', requestId, request.userId);
+                            }
 
                     showAlert('Demande rejetée', 'La demande de paiement a été rejetée.');
                     loadAdminDashboard();
@@ -2991,9 +3002,18 @@
             const container = document.getElementById('notificationList');
             if (!currentUser) return;
 
-            // Filter notifications by current user's role
-            const userRole = currentUser.role === 'admin' ? 'admin' : 'user';
-            const userNotifs = (appData.notifications || []).filter(n => n.toRole === userRole);
+            let userNotifs;
+            if (currentUser.role === 'admin') {
+                // Admin : voit toutes les notifications
+                userNotifs = appData.notifications || [];
+            } else {
+                // Client : uniquement ses notifications
+                userNotifs = (appData.notifications || []).filter(n => {
+                    if (n.toRole !== 'user') return false;
+                    if (n.targetUserId && n.targetUserId !== currentUser.id) return false;
+                    return true;
+                });
+            }
 
             if (userNotifs.length === 0) {
                 container.innerHTML = '<div class="text-center text-gray-500 py-4">Aucune notification</div>';
