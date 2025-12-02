@@ -791,6 +791,14 @@
                 </div>
             </div>
 
+            <!-- Historique des demandes d'abonnement (pour le client) -->
+            <div id="userRequestsHistorySection" class="mb-8 hidden">
+                <h2 class="text-2xl font-bold mb-4">📜 Historique de mes demandes</h2>
+                <div id="userRequestsHistoryList" class="space-y-4">
+                    <!-- Les lignes d'historique de demandes seront générées ici -->
+                </div>
+            </div>
+
             <!-- Demandes en attente -->
             <div id="pendingRequestSection" class="mb-8 hidden">
                 <h2 class="text-2xl font-bold mb-4">⏳ Demande en Attente</h2>
@@ -876,6 +884,21 @@
                 <h2 class="text-2xl font-bold mb-4">⏳ Demandes de Paiement en Attente</h2>
                 <div class="bg-gray-50 dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
                     <div id="pendingRequestsTable" class="overflow-x-auto">
+                        <!-- Tableau sera généré ici -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historique des demandes de paiement -->
+            <div class="mt-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold">📜 Historique des Demandes de Paiement</h2>
+                    <div>
+                        <button id="exportPaymentRequestsHistoryBtn" onclick="exportPaymentRequestsHistoryToExcel()" class="px-3 py-2 bg-emerald-600 text-white rounded">Exporter Excel</button>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                    <div id="paymentRequestsHistoryTable" class="overflow-x-auto">
                         <!-- Tableau sera généré ici -->
                     </div>
                 </div>
@@ -1835,6 +1858,7 @@
             try {
                 renderUserSubscriptions();
                 document.getElementById('userHistorySection')?.classList.remove('hidden');
+                renderUserRequestsHistory();
             } catch (e) { /* ignore if not ready */ }
 
             const subscriptions = getSubscriptions();
@@ -1925,6 +1949,56 @@
                 document.getElementById('chooseSubscriptionSection').classList.remove('hidden');
                 renderSubscriptionPlans();
             }
+        }
+
+        // Render history of all payment requests for the current user
+        function renderUserRequestsHistory() {
+            const container = document.getElementById('userRequestsHistoryList');
+            const section = document.getElementById('userRequestsHistorySection');
+            if (!container || !section || !currentUser) return;
+
+            const requests = getPaymentRequests().filter(r => r.userId === currentUser.id);
+
+            if (!requests.length) {
+                section.classList.add('hidden');
+                container.innerHTML = `<div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">Aucune demande d'abonnement.</div>`;
+                return;
+            }
+
+            section.classList.remove('hidden');
+
+            const sorted = [...requests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            container.innerHTML = sorted.map(req => {
+                let statusLabel = req.status || '';
+                let statusClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300';
+
+                if (req.status === 'pending') {
+                    statusLabel = 'En attente';
+                    statusClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+                } else if (req.status === 'approved') {
+                    statusLabel = 'Approuvée';
+                    statusClasses = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+                } else if (req.status === 'rejected') {
+                    statusLabel = 'Rejetée';
+                    statusClasses = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+                }
+
+                return `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex justify-between items-center">
+                        <div>
+                            <div class="text-sm text-gray-500">${req.planName}</div>
+                            <div class="font-semibold">${formatDate(req.createdAt)}</div>
+                            <div class="text-sm text-gray-500">Montant : ${formatCurrency(req.amount)}</div>
+                        </div>
+                        <div class="text-right space-y-2">
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses}">
+                                ${statusLabel || 'Inconnu'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // ================= Polling for admin approval ======================
@@ -2120,6 +2194,7 @@
 
             updateAdminStats();
             renderPendingRequestsTable();
+            renderPaymentRequestsHistoryTable();
             renderAllSubscriptionsTable();
             renderContactMessagesTable();
             renderPaymentHistoryTable();
@@ -2398,7 +2473,6 @@
                     if (!request) return;
 
                     // Créer l'abonnement
-                    const subscriptions = getSubscriptions();
                     const plan = findPlanById(request.planId);
 
                     const startDate = new Date();
@@ -2409,13 +2483,34 @@
 
                     (async () => {
                         try {
+                            // 1) Vérifier dans Supabase que la demande est toujours en attente
+                            const { data: freshReq, error: reqError } = await supabase
+                                .from('payment_requests')
+                                .select('id, status')
+                                .eq('id', requestId)
+                                .single();
+
+                            if (reqError || !freshReq) {
+                                console.error('Erreur lors de la vérification de la demande de paiement Supabase', reqError);
+                                showAlert('Erreur', 'Impossible de vérifier la demande de paiement. Veuillez réessayer.');
+                                return;
+                            }
+
+                            if (freshReq.status !== 'pending') {
+                                showAlert('Information', 'Cette demande de paiement a déjà été traitée. Rafraîchissez le tableau de bord si nécessaire.');
+                                await loadPaymentRequestsFromSupabase();
+                                loadAdminDashboard();
+                                return;
+                            }
+
+                            // 2) Créer l'abonnement dans Supabase
                             const { data: inserted, error: subError } = await supabase
                                 .from('subscriptions')
                                 .insert({
                                     user_id: request.userId,
                                     plan_id: request.planId,
                                     plan_name: plan.name || request.planName || request.planId,
-                        amount: plan.price || request.amount,
+                                    amount: plan.price || request.amount,
                                     start_date: startDate.toISOString(),
                                     end_date: endDate.toISOString(),
                                     status: 'active'
@@ -2429,24 +2524,35 @@
                                 return;
                             }
 
-                            // Recharger les abonnements depuis Supabase
-                            await loadSubscriptionsFromSupabase();
+                            // 3) Mettre à jour le statut de la demande dans Supabase pour éviter toute double validation
+                            const { error: updateReqError } = await supabase
+                                .from('payment_requests')
+                                .update({ status: 'approved' })
+                                .eq('id', requestId);
 
-                            // Ajouter à l'historique des paiements
+                            if (updateReqError) {
+                                console.error('Erreur lors de la mise à jour de la demande de paiement Supabase', updateReqError);
+                                // On continue malgré tout, mais on recharge les demandes pour éviter un affichage incohérent
+                            }
+
+                            // 4) Recharger les abonnements depuis Supabase et persister dans localStorage
+                            await loadSubscriptionsFromSupabase();
+                            saveSubscriptions(getSubscriptions());
+
+                            // 5) Ajouter à l'historique des paiements
                             await addPaymentHistory(inserted.id, request.userId, request.amount, 'completed');
 
-                            // Supprimer la demande de paiement (local pour l’instant)
-                    const updatedRequests = paymentRequests.filter(r => r.id !== requestId);
-                    savePaymentRequests(updatedRequests);
+                            // 6) Recharger les demandes de paiement depuis Supabase (statut mis à jour)
+                            await loadPaymentRequestsFromSupabase();
 
-                    // Ajouter une notification au client (toRole: 'user') avec ciblage du user
+                            // 7) Ajouter une notification au client (toRole: 'user') avec ciblage du user
                             addNotification('subscription', 'Abonnement activé', `Abonnement ${plan.name} approuvé pour ${request.userName}`, 'user', inserted.id, request.userId);
 
-                    showAlert('Succès', 'L\'abonnement a été activé avec succès !');
-                    loadAdminDashboard();
+                            showAlert('Succès', 'L\'abonnement a été activé avec succès !');
+                            loadAdminDashboard();
 
-                    // Si l'action est réalisée par un admin, proposer l'impression de la facture
-                    if (currentUser && currentUser.role === 'admin') {
+                            // Si l'action est réalisée par un admin, proposer l'impression de la facture
+                            if (currentUser && currentUser.role === 'admin') {
                                 setTimeout(() => printInvoice(inserted.id), 400);
                             }
                         } catch (e) {
@@ -2919,8 +3025,76 @@
         };
 
         // ============================================
-        // Payment History & Notifications UI
+        // Payment Requests History, Payment History & Notifications UI
         // ============================================
+        function renderPaymentRequestsHistoryTable() {
+            const requests = getPaymentRequests();
+            const container = document.getElementById('paymentRequestsHistoryTable');
+
+            if (!container) return;
+
+            if (!requests.length) {
+                container.innerHTML = `<div class="p-8 text-center text-gray-500 dark:text-gray-400">Aucune demande de paiement</div>`;
+                return;
+            }
+
+            const sorted = [...requests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            container.innerHTML = `
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Client</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Forfait</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Montant</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        ${sorted.map(req => {
+                            let statusLabel = req.status || '';
+                            let statusClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300';
+
+                            if (req.status === 'pending') {
+                                statusLabel = 'En attente';
+                                statusClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+                            } else if (req.status === 'approved') {
+                                statusLabel = 'Approuvée';
+                                statusClasses = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+                            } else if (req.status === 'rejected') {
+                                statusLabel = 'Rejetée';
+                                statusClasses = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+                            }
+
+                            return `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">${req.userName || ''}</div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400">${req.userPhone || ''}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900 dark:text-white">${req.planName || req.planId || ''}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                                        ${formatCurrency(req.amount)}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses}">
+                                            ${statusLabel || 'Inconnu'}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        ${formatDate(req.createdAt)}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderPaymentHistoryTable() {
             const history = getPaymentHistory();
             const container = document.getElementById('paymentHistoryTable');
@@ -2984,6 +3158,36 @@
             } catch (err) {
                 console.error('Export failed:', err);
                 showAlert('Erreur', 'Impossible d\'exporter l\'historique');
+            }
+        };
+
+        window.exportPaymentRequestsHistoryToExcel = function() {
+            const requests = getPaymentRequests();
+            if (!requests.length) {
+                showAlert('Attention', 'Aucune demande de paiement à exporter');
+                return;
+            }
+
+            const ws_data = [['Client', 'Téléphone', 'Forfait', 'Montant (FC)', 'Statut', 'Date']];
+            requests.forEach(req => {
+                ws_data.push([
+                    req.userName || '',
+                    req.userPhone || '',
+                    req.planName || req.planId || '',
+                    req.amount,
+                    req.status || '',
+                    formatDate(req.createdAt)
+                ]);
+            });
+
+            try {
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Demandes');
+                XLSX.writeFile(wb, `historique_demandes_paiement_${new Date().getTime()}.xlsx`);
+            } catch (err) {
+                console.error('Export failed:', err);
+                showAlert('Erreur', 'Impossible d\'exporter l\'historique des demandes');
             }
         };
 
