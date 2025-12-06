@@ -3051,15 +3051,9 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').match
             applyTheme(initial);
         } catch (e) {}
 
-    // Initialisation: charger les données locales puis les utilisateurs & données depuis Supabase
+    // Initialisation optimisée: charger léger pour les visiteurs, complet selon le rôle
     (async () => {
         initializeData();
-        await loadUsersFromSupabase();
-        await loadSubscriptionsFromSupabase();
-        await loadPaymentRequestsFromSupabase();
-        await loadPaymentHistoryFromSupabase();
-        await loadNotificationsFromSupabase();
-        await loadContactMessagesFromSupabase();
 
         // Charger les images (Supabase avec fallback local), puis construire les carrousels
         await loadImagesFromSupabase();
@@ -3067,44 +3061,79 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').match
         initializeOfferCarousels();
         initSwipers();
 
-        // Tenter de restaurer une session utilisateur depuis le localStorage
+        // Récupérer la session
+        let storedSession = null;
         try {
             const rawSession = localStorage.getItem(CURRENT_USER_KEY);
-            if (rawSession) {
-                const stored = JSON.parse(rawSession);
-                const users = appData.users || [];
-                const fresh = users.find(u => u.id === stored.id);
+            if (rawSession) storedSession = JSON.parse(rawSession);
+        } catch (e) {
+            console.warn('Erreur lors de la lecture de la session', e);
+        }
 
-                if (fresh) {
+        // Rafraîchir l'utilisateur courant si session
+        if (storedSession && storedSession.id) {
+            try {
+                const { data: fresh, error } = await supabase
+                    .from('users')
+                    .select('id, username, email, name, phone, address, avatar_path, role, created_at')
+                    .eq('id', storedSession.id)
+                    .single();
+                if (!error && fresh) {
                     currentUser = {
                         id: fresh.id,
                         username: fresh.username,
-                        email: stored.email || `${fresh.username}@example.com`,
+                        email: storedSession.email || `${fresh.username}@example.com`,
                         name: fresh.name,
                         phone: fresh.phone,
                         address: fresh.address,
-                        role: fresh.role || stored.role || 'user',
-                        createdAt: fresh.createdAt || stored.createdAt || new Date().toISOString()
+                        role: fresh.role || storedSession.role || 'user',
+                        avatarPath: fresh.avatar_path || storedSession.avatarPath || null,
+                        createdAt: fresh.created_at || storedSession.createdAt || new Date().toISOString()
                     };
-                } else {
-                    // L'utilisateur n'existe plus en base, on nettoie la session locale
-                    localStorage.removeItem(CURRENT_USER_KEY);
+                    // Mise à jour de la session locale
+                    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
+                        id: currentUser.id,
+                        username: currentUser.username,
+                        email: currentUser.email,
+                        name: currentUser.name,
+                        phone: currentUser.phone,
+                        address: currentUser.address,
+                        role: currentUser.role,
+                        avatarPath: currentUser.avatarPath || null,
+                        createdAt: currentUser.createdAt
+                    }));
+                } else if (error && error.code !== 'PGRST116') {
+                    console.warn('Erreur lors du rafraîchissement utilisateur', error);
                 }
+            } catch (e) {
+                console.warn('Erreur inattendue lors du rafraîchissement utilisateur', e);
             }
-        } catch (e) {
-            console.warn('Erreur lors de la restauration de la session utilisateur', e);
         }
 
-        // Rediriger automatiquement l'utilisateur vers son tableau de bord si une session est présente
+        // Chargements selon le rôle
         if (currentUser) {
             if (currentUser.role === 'admin') {
+                await Promise.all([
+                    loadUsersFromSupabase(),
+                    loadSubscriptionsFromSupabase(),
+                    loadPaymentRequestsFromSupabase(),
+                    loadPaymentHistoryFromSupabase(),
+                    loadNotificationsFromSupabase(),
+                    loadContactMessagesFromSupabase()
+                ]);
                 loadAdminDashboard();
                 showPage('adminDashboard');
             } else {
+                await Promise.all([
+                    loadSubscriptionsFromSupabase(),
+                    loadPaymentRequestsFromSupabase(),
+                    loadNotificationsFromSupabase()
+                ]);
                 loadUserDashboard();
                 showPage('userDashboard');
             }
         } else {
+            // Visiteur : rester sur la landing, pas de requêtes data lourdes
             showPage('landingPage');
         }
 
