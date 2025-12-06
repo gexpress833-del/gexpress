@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mon Profil - Green Express</title>
+  <link rel="icon" href="assets/logo.jpg" />
+  <!-- Tailwind (optionnel mais léger pour la mise en page) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { background: #f8fafc; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+    .avatar {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; font-weight: 700; color: #0f172a;
+      background-size: cover; background-position: center;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <header class="flex items-center justify-between mb-8">
+      <div class="flex items-center gap-3">
+        <img src="assets/logo.jpg" alt="Green Express" class="h-12 w-auto rounded-lg shadow">
+        <div>
+          <h1 class="text-2xl font-bold text-emerald-700">Mon Profil</h1>
+          <p class="text-sm text-slate-500">Gérez vos informations et votre avatar.</p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button id="backBtn" class="px-4 py-2 text-emerald-700 border border-emerald-600 rounded-lg hover:bg-emerald-50">Retour</button>
+        <button id="logoutBtn" class="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="card p-6 grid md:grid-cols-[220px,1fr] gap-6">
+      <div class="space-y-4">
+        <div class="flex flex-col items-center gap-3">
+          <div id="avatarDisplay" class="avatar">G</div>
+          <button id="changeAvatarBtn" class="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm">Changer la photo</button>
+          <input type="file" id="avatarInput" accept="image/*" class="hidden">
+          <div class="text-xs text-slate-500 text-center px-3">Formats acceptés : jpg, png, webp. Taille recommandée &lt; 1 Mo.</div>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Informations du compte</h2>
+          <p class="text-sm text-slate-500">Modifiez votre nom, téléphone ou adresse.</p>
+        </div>
+        <form id="profileForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nom complet</label>
+            <input id="nameInput" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Votre nom">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Téléphone</label>
+            <input id="phoneInput" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Ex: 097 000 0000">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Adresse</label>
+            <input id="addressInput" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Votre adresse">
+          </div>
+          <div class="flex gap-3">
+            <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Enregistrer</button>
+            <span id="status" class="text-sm text-slate-500"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="profile.js"></script>
+</body>
+</html>
+
